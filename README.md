@@ -102,26 +102,18 @@ export JAVA_HOME=<jdk-17-home>
 ./mvnw -B clean package   # 24 tests, incl. live-HTTP round trip against a stub server
 ```
 
-`./mvnw install` / `./mvnw verify` run the `integration-test` phase, which needs the **enterprise**
-`munit-extensions-maven-plugin` from MuleSoft's EE repository. Add your Anypoint credentials to
-`~/.m2/settings.xml`:
+The project has no MUnit suites, so the parent's EE-only MUnit plugin is unbound and
+`./mvnw verify`, `install` and `deploy` need no MuleSoft EE repository access.
 
-```xml
-<server>
-  <id>mulesoft-ee</id>
-  <username>YOUR_ANYPOINT_USERNAME</username>
-  <password>YOUR_ANYPOINT_PASSWORD</password>
-</server>
-```
-
-(plus the matching EE repository/pluginRepository entries) — the same credentials you later need to
-publish to Exchange. Without them, install the packaged plugin locally for Studio testing. Build
-it yourself, or download `mule-unleash-connector-1.0.0-mule-plugin.jar` from the
-[v1.0.0 release](https://github.com/mxttwoods/mule-unleash-connector/releases/tag/v1.0.0):
+To use the connector from Studio or a local app build, install it into your local Maven
+repository with `./mvnw -B install`. Without building, download
+`mule-unleash-connector-1.0.0-mule-plugin.jar` from the
+[v1.0.0 release](https://github.com/mxttwoods/mule-unleash-connector/releases/tag/v1.0.0) and
+install that file:
 
 ```bash
 ./mvnw -B org.apache.maven.plugins:maven-install-plugin:3.1.4:install-file \
-  -Dfile=target/mule-unleash-connector-1.0.0-mule-plugin.jar \
+  -Dfile=mule-unleash-connector-1.0.0-mule-plugin.jar \
   -DgroupId=com.work -DartifactId=mule-unleash-connector \
   -Dversion=1.0.0 -Dclassifier=mule-plugin -Dpackaging=mule-extension \
   -DpomFile=pom.xml
@@ -137,6 +129,37 @@ then depend on it from your app:
   <classifier>mule-plugin</classifier>
 </dependency>
 ```
+
+## Publish to Anypoint Exchange
+
+`scripts/publish-to-exchange.sh` publishes the committed `HEAD` to your organization's Exchange.
+It builds a throwaway copy, sets that copy's `groupId` to your organization ID as Exchange requires,
+and runs `mvn deploy` against the Exchange Maven endpoint. Your working tree and `pom.xml` are
+not changed.
+
+1. Find the organization or business group ID in Anypoint Platform under **Access Management >
+   Business Groups > your group > Settings**.
+2. Create a connected app that acts on its own behalf, with the **Exchange Contributor** scope for
+   that business group. Note its client ID and secret.
+3. Check the build without uploading anything:
+
+   ```bash
+   export JAVA_HOME=<jdk-17-home>
+   scripts/publish-to-exchange.sh --org-id <org-id> --dry-run
+   ```
+
+4. Publish:
+
+   ```bash
+   export ANYPOINT_CLIENT_ID=<client-id> ANYPOINT_CLIENT_SECRET=<client-secret>
+   scripts/publish-to-exchange.sh --org-id <org-id>
+   ```
+
+Use `--region eu` or `--region gov` for those control planes. `ANYPOINT_TOKEN`, or
+`ANYPOINT_USERNAME` with `ANYPOINT_PASSWORD`, also work in place of a connected app. Exchange
+rejects a version that already exists, so pass `--version 1.0.1` (or bump `pom.xml`) for each new
+publish. Apps that use the published asset depend on it with your organization ID as the
+`groupId`.
 
 ## Tests
 
@@ -163,13 +186,14 @@ src/main/java/com/work/unleash/internal/
   UnleashErrorType.java          EVALUATION
 src/test/java/...               24 tests, no Mule runtime needed
 demo/unleash-demo-flow.xml      copy-paste flow sample
+scripts/publish-to-exchange.sh  Anypoint Exchange publisher
 ```
 
 ## Roadmap
 
 - Verify against your on-prem GitLab version (flag evaluation is standard Unleash; watch the
   per-IP rate limit with many workers).
-- MUnit coverage + Exchange publishing (needs EE credentials above).
+- MUnit coverage (needs MuleSoft EE repository access for the MUnit plugin).
 - Optional: custom Unleash strategies via `@Parameter`-supplied class names.
 
 ## License

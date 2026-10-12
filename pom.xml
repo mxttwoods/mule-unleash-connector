@@ -106,6 +106,18 @@
           </supportedJavaVersions>
         </configuration>
       </plugin>
+      <!-- There are no MUnit suites, and the parent's MUnit plugin only resolves from MuleSoft's EE
+           repository, so unbinding it lets verify, install and deploy run without EE access. -->
+      <plugin>
+        <groupId>com.mulesoft.munit</groupId>
+        <artifactId>munit-extensions-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>default-test</id>
+            <phase>none</phase>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
 </project>
