@@ -115,13 +115,15 @@ export JAVA_HOME=<jdk-17-home>
 ```
 
 (plus the matching EE repository/pluginRepository entries) — the same credentials you later need to
-publish to Exchange. Without them, install the packaged plugin locally for Studio testing:
+publish to Exchange. Without them, install the packaged plugin locally for Studio testing. Build
+it yourself, or download `mule-unleash-connector-1.0.0-mule-plugin.jar` from the
+[v1.0.0 release](https://github.com/mxttwoods/mule-unleash-connector/releases/tag/v1.0.0):
 
 ```bash
 ./mvnw -B org.apache.maven.plugins:maven-install-plugin:3.1.4:install-file \
-  -Dfile=target/mule-unleash-connector-1.0.0-SNAPSHOT-mule-plugin.jar \
+  -Dfile=target/mule-unleash-connector-1.0.0-mule-plugin.jar \
   -DgroupId=com.work -DartifactId=mule-unleash-connector \
-  -Dversion=1.0.0-SNAPSHOT -Dclassifier=mule-plugin -Dpackaging=mule-extension \
+  -Dversion=1.0.0 -Dclassifier=mule-plugin -Dpackaging=mule-extension \
   -DpomFile=pom.xml
 ```
 
@@ -131,7 +133,7 @@ then depend on it from your app:
 <dependency>
   <groupId>com.work</groupId>
   <artifactId>mule-unleash-connector</artifactId>
-  <version>1.0.0-SNAPSHOT</version>
+  <version>1.0.0</version>
   <classifier>mule-plugin</classifier>
 </dependency>
 ```
