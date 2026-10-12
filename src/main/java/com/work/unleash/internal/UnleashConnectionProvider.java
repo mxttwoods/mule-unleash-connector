@@ -12,7 +12,10 @@ import org.mule.sdk.api.annotation.param.display.Summary;
 import org.mule.sdk.api.annotation.semantics.security.Password;
 import org.mule.sdk.api.connectivity.CachedConnectionProvider;
 import org.mule.sdk.api.connectivity.ConnectionValidationResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
@@ -35,6 +38,8 @@ import java.util.concurrent.TimeUnit;
  * client API token.
  */
 public class UnleashConnectionProvider implements CachedConnectionProvider<UnleashConnection> {
+
+  private static final Logger LOGGER = LoggerFactory.getLogger(UnleashConnectionProvider.class);
 
   @Parameter
   @DisplayName("Unleash API URL")
@@ -94,8 +99,9 @@ public class UnleashConnectionProvider implements CachedConnectionProvider<Unlea
   @Parameter
   @Optional
   @DisplayName("Backup file")
-  @Summary("Where the SDK caches flags for offline evaluation. Defaults to the JVM temp dir. "
-      + "On CloudHub 2.0 the filesystem is ephemeral, so restarts refetch from the server.")
+  @Summary("Where the SDK caches flags for offline evaluation. Defaults to a file in the JVM temp "
+      + "dir named after the API URL and app name. On CloudHub 2.0 the filesystem is ephemeral, "
+      + "so restarts refetch from the server.")
   private String backupFile;
 
   @Parameter
@@ -160,15 +166,18 @@ public class UnleashConnectionProvider implements CachedConnectionProvider<Unlea
           .fetchTogglesConnectTimeoutSeconds(connectTimeoutSeconds)
           .fetchTogglesReadTimeoutSeconds(readTimeoutSeconds)
           .sendMetricsConnectTimeoutSeconds(connectTimeoutSeconds)
-          .sendMetricsReadTimeoutSeconds(readTimeoutSeconds);
+          .sendMetricsReadTimeoutSeconds(readTimeoutSeconds)
+          .backupFile(backupFile != null && !backupFile.isBlank()
+              ? backupFile : defaultBackupFile(unleashApiUrl, appName))
+          // The SDK rethrows a failed synchronous fetch by default, which would fail deployment
+          // whenever Unleash/GitLab is down at boot. Start on the backup/empty cache instead.
+          .startupExceptionHandler(e -> LOGGER.warn("Initial Unleash fetch from {} failed; "
+              + "evaluating against the backup file or defaults until the next poll", unleashApiUrl, e));
       if (apiKey != null && !apiKey.isBlank()) {
         builder.apiKey(apiKey);
       }
       if (disableMetrics) {
         builder.disableMetrics();
-      }
-      if (backupFile != null && !backupFile.isBlank()) {
-        builder.backupFile(backupFile);
       }
       if (projectName != null && !projectName.isBlank()) {
         builder.projectName(projectName);
@@ -176,8 +185,9 @@ public class UnleashConnectionProvider implements CachedConnectionProvider<Unlea
       if (namePrefix != null && !namePrefix.isBlank()) {
         builder.namePrefix(namePrefix);
       }
-      if (proxyHost != null && !proxyHost.isBlank()) {
-        builder.proxy(new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, proxyPort)));
+      Proxy proxy = proxy();
+      if (proxy != Proxy.NO_PROXY) {
+        builder.proxy(proxy);
       }
       if (customHeaders != null) {
         customHeaders.forEach(builder::customHttpHeader);
@@ -212,7 +222,7 @@ public class UnleashConnectionProvider implements CachedConnectionProvider<Unlea
     try {
       String base = unleashApiUrl != null ? unleashApiUrl.replaceAll("/+$", "") : "";
       URL url = new URL(base + "/client/features");
-      http = (HttpURLConnection) url.openConnection();
+      http = (HttpURLConnection) url.openConnection(proxy());
       http.setRequestMethod("GET");
       http.setConnectTimeout((int) TimeUnit.SECONDS.toMillis(connectTimeoutSeconds));
       http.setReadTimeout((int) TimeUnit.SECONDS.toMillis(readTimeoutSeconds));
@@ -241,6 +251,22 @@ public class UnleashConnectionProvider implements CachedConnectionProvider<Unlea
         http.disconnect();
       }
     }
+  }
+
+  private Proxy proxy() {
+    return proxyHost != null && !proxyHost.isBlank()
+        ? new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, proxyPort))
+        : Proxy.NO_PROXY;
+  }
+
+  /**
+   * The SDK's own default ({@code unleash-<appName>-repo.json}) is shared by every client with the
+   * same app name in the JVM. GitLab app names are environments, so two projects both using
+   * {@code production} would overwrite each other's backup and could boot on the wrong flags.
+   */
+  static String defaultBackupFile(String unleashApiUrl, String appName) {
+    String key = String.format("%08x", (unleashApiUrl + "\n" + appName).hashCode());
+    return new File(System.getProperty("java.io.tmpdir"), "unleash-" + key + "-repo.json").getPath();
   }
 
   // Getters/setters (setters used by tests; the runtime injects fields directly).

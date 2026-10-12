@@ -55,7 +55,8 @@ class UnleashContextParamsTest {
   }
 
   @Test
-  void operationOnlyContextIsUsedVerbatim() {    UnleashContextParams operation = new UnleashContextParams();
+  void operationOnlyContextIsUsedVerbatim() {
+    UnleashContextParams operation = new UnleashContextParams();
     operation.setUserId("u1");
     operation.setRemoteAddress("10.0.0.1");
 

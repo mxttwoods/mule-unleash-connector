@@ -1,11 +1,7 @@
 package com.work.unleash.internal;
 
-import static org.mule.sdk.api.meta.JavaVersion.JAVA_17;
-import static org.mule.sdk.api.meta.JavaVersion.JAVA_21;
-
 import org.mule.sdk.api.annotation.Configurations;
 import org.mule.sdk.api.annotation.Extension;
-import org.mule.sdk.api.annotation.JavaVersionSupport;
 import org.mule.sdk.api.annotation.dsl.xml.Xml;
 import org.mule.sdk.api.annotation.error.ErrorTypes;
 
@@ -19,7 +15,6 @@ import org.mule.sdk.api.annotation.error.ErrorTypes;
 @Xml(prefix = "unleash")
 @Extension(name = "Unleash")
 @Configurations(UnleashConfiguration.class)
-@JavaVersionSupport({JAVA_17, JAVA_21})
 @ErrorTypes(UnleashErrorType.class)
 public class UnleashExtension {
 }

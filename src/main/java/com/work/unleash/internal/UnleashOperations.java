@@ -4,6 +4,7 @@ import static org.mule.sdk.api.annotation.param.MediaType.ANY;
 
 import io.getunleash.UnleashContext;
 import io.getunleash.variant.Payload;
+import com.work.unleash.api.UnleashVariantResult;
 import org.mule.sdk.api.annotation.param.Config;
 import org.mule.sdk.api.annotation.param.Connection;
 import org.mule.sdk.api.annotation.param.MediaType;

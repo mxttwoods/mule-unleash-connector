@@ -1,4 +1,4 @@
-package com.work.unleash.internal;
+package com.work.unleash.api;
 
 import io.getunleash.variant.Payload;
 import io.getunleash.variant.Variant;

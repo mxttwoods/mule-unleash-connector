@@ -1,5 +1,6 @@
 package com.work.unleash.internal;
 
+import com.work.unleash.api.UnleashVariantResult;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -167,6 +168,36 @@ class UnleashLiveClientTest {
     connection = provider.connect();
 
     assertThat(provider.validate(connection).isValid()).isTrue();
+  }
+
+  @Test
+  void synchronousFetchAgainstDownServerStillConnects() throws Exception {
+    // The SDK throws on a failed synchronous fetch unless a startup handler swallows it; without
+    // that, a GitLab outage at boot would fail the Mule app's deployment.
+    UnleashConnectionProvider provider = liveProvider();
+    provider.setUnleashApiUrl("http://127.0.0.1:1/api");
+    provider.setSynchronousFetch(true);
+    provider.setConnectTimeoutSeconds(2);
+    provider.setReadTimeoutSeconds(2);
+    connection = provider.connect();
+
+    UnleashContextParams context = new UnleashContextParams();
+    UnleashOperations operations = new UnleashOperations();
+    UnleashConfiguration config = new UnleashConfiguration();
+    assertThat(operations.isEnabled(config, connection, "new-checkout", true, context)).isTrue();
+    assertThat(operations.isEnabled(config, connection, "new-checkout", false, context)).isFalse();
+  }
+
+  @Test
+  void defaultBackupFileIsDistinctPerProjectWithSameAppName() {
+    String projectA = UnleashConnectionProvider.defaultBackupFile(
+        "https://gitlab.example.com/api/v4/feature_flags/unleash/1", "production");
+    String projectB = UnleashConnectionProvider.defaultBackupFile(
+        "https://gitlab.example.com/api/v4/feature_flags/unleash/2", "production");
+
+    assertThat(projectA).isNotEqualTo(projectB);
+    assertThat(projectA).isEqualTo(UnleashConnectionProvider.defaultBackupFile(
+        "https://gitlab.example.com/api/v4/feature_flags/unleash/1", "production"));
   }
 
   @Test

@@ -79,10 +79,15 @@ maps are merged.
 
 ## CloudHub 2.0 notes
 
-- **Ephemeral filesystem**: the SDK's `unleash-repo.json` backup does not survive restarts; workers
-  refetch on boot (`synchronousFetch` defaults to true so the first fetch happens at startup — but
-  if the server is down at boot, early events evaluate against an empty cache and get defaults).
-  You can still set `backupFile` to a path under `/tmp` for in-lifetime resilience.
+- **Ephemeral filesystem**: the flag backup (by default `unleash-<hash of URL + appName>-repo.json`
+  in the JVM temp dir) does not survive restarts; workers refetch on boot. `synchronousFetch`
+  defaults to true so the first fetch happens at startup. If the server is down at boot, the app
+  still deploys (a warning is logged) and evaluates against the backup file, or returns operation
+  defaults until the next successful poll.
+- **Native library**: Unleash Java client 12.x evaluates flags with the Yggdrasil engine, a native
+  library that is extracted to the JVM temp dir and loaded at startup. The temp dir must be
+  writable and allow execution. If `/tmp` is mounted `noexec`, point the
+  `io.getunleash.engine.native.path` system property at a directory holding the library.
 - **Rate limits**: GitLab's flags API is per-IP limited. With many replicas, raise
   `fetchTogglesInterval` (e.g. 60s) and keep `disableMetrics="true"`.
 - **Egress**: if workers reach GitLab through a proxy, set `proxyHost`/`proxyPort`; for gateway
@@ -92,7 +97,7 @@ maps are merged.
 
 ```bash
 export JAVA_HOME=<jdk-17-home>
-mvn -B clean package   # 22 tests, incl. live-HTTP round trip against a stub server
+mvn -B clean package   # 24 tests, incl. live-HTTP round trip against a stub server
 ```
 
 `mvn install` / `mvn verify` run the `integration-test` phase, which needs the **enterprise**
@@ -135,12 +140,15 @@ then depend on it from your app:
 - `UnleashVariantResultTest` — SDK `Variant` → DataWeave POJO mapping (incl. `FakeUnleash`).
 - `UnleashOperationsTest` — operations against `FakeUnleash` (flag on/off/unknown + defaults).
 - `UnleashLiveClientTest` — real `DefaultUnleash` HTTP round trip (register/fetch/evaluate) against
-  an in-JVM stub serving `features-v1` JSON, GitLab-style with empty API key.
+  an in-JVM stub serving `features-v1` JSON, GitLab-style with empty API key; also startup with
+  the server down, connectivity validation, and per-project backup file names.
 
 ## Project layout
 
 ```
 pom.xml
+src/main/java/com/work/unleash/api/
+  UnleashVariantResult.java      DataWeave-friendly variant POJO (exported type)
 src/main/java/com/work/unleash/internal/
   UnleashExtension.java          @Extension, namespace unleash
   UnleashConfiguration.java      operations binding + default context
@@ -148,9 +156,8 @@ src/main/java/com/work/unleash/internal/
   UnleashConnection.java         DefaultUnleash wrapper (shutdown on disconnect)
   UnleashOperations.java         is-enabled / get-variant / get-variant-payload
   UnleashContextParams.java      context group + merge logic
-  UnleashVariantResult.java      DataWeave-friendly variant POJO
-  UnleashErrorType.java          CONNECTION / EVALUATION
-src/test/java/...               22 tests, no Mule runtime needed
+  UnleashErrorType.java          EVALUATION
+src/test/java/...               24 tests, no Mule runtime needed
 demo/unleash-demo-flow.xml      copy-paste flow sample
 ```
 

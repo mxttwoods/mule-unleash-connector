@@ -1,5 +1,6 @@
 package com.work.unleash.internal;
 
+import com.work.unleash.api.UnleashVariantResult;
 import io.getunleash.FakeUnleash;
 import io.getunleash.variant.Payload;
 import io.getunleash.variant.Variant;
