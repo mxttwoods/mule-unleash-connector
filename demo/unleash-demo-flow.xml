@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:unleash="http://www.mulesoft.org/schema/mule/unleash"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+        http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/unleash http://www.mulesoft.org/schema/mule/unleash/current/mule-unleash.xsd">
+
+  <!-- GitLab: Deploy > Feature flags > Configure gives you api URL + instance ID.
+       appName is the *environment* (e.g. production). Secrets via secure properties. -->
+  <unleash:config name="Unleash_GitLab" doc:name="Unleash GitLab config">
+    <unleash:connection unleashApiUrl="https://gitlab.example.com/api/v4/feature_flags/unleash/42"
+                        instanceId="${secure::gitlab.unleash.instanceId}"
+                        appName="production"
+                        fetchTogglesInterval="60"
+                        disableMetrics="true" />
+  </unleash:config>
+
+  <http:listener-config name="HTTP_Config" doc:name="HTTP config">
+    <http:listener-connection host="0.0.0.0" port="8081" />
+  </http:listener-config>
+
+  <flow name="flag-gated-checkout">
+    <http:listener doc:name="GET /checkout" config-ref="HTTP_Config" path="/checkout" />
+
+    <!-- Boolean gate held in a flow var. Nullable context: absent fields fall back to the
+         config's Default Context group instead of pinning a literal value. -->
+    <unleash:is-enabled doc:name="New checkout enabled?"
+                        config-ref="Unleash_GitLab"
+                        toggleName="new-checkout"
+                        defaultValue="false"
+                        target="newCheckoutEnabled"
+                        userId="#[vars.userId]"
+                        sessionId="#[vars.sessionId]" />
+
+    <choice doc:name="Route on flag">
+      <when expression="#[vars.newCheckoutEnabled]">
+        <!-- Variant + payload for graduated rollouts / copy tests.
+             Same context as the gate above so stickiness is consistent within the flow. -->
+        <unleash:get-variant doc:name="Checkout copy variant"
+                             config-ref="Unleash_GitLab"
+                             toggleName="checkout-copy"
+                             target="checkoutVariant"
+                             userId="#[vars.userId]"
+                             sessionId="#[vars.sessionId]" />
+        <ee:transform doc:name="New checkout response">
+          <ee:message>
+            <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  flow: "new-checkout",
+  variant: vars.checkoutVariant.name,
+  copy: vars.checkoutVariant.payloadValue default "standard copy"
+}]]></ee:set-payload>
+          </ee:message>
+        </ee:transform>
+      </when>
+      <otherwise>
+        <ee:transform doc:name="Legacy checkout response">
+          <ee:message>
+            <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{ flow: "legacy-checkout" }]]></ee:set-payload>
+          </ee:message>
+        </ee:transform>
+      </otherwise>
+    </choice>
+  </flow>
+</mule>

@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.mule.extensions</groupId>
+    <artifactId>mule-java-extension-parent</artifactId>
+    <version>1.13.0</version>
+  </parent>
+
+  <groupId>com.work</groupId>
+  <artifactId>mule-unleash-connector</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+  <packaging>mule-extension</packaging>
+
+  <name>Mule Unleash Connector</name>
+  <description>Mule 4 connector for Unleash feature flags (including GitLab's Unleash-compatible
+    feature flags API). Evaluate flags and variants in flows with full Unleash context support.
+  </description>
+
+  <properties>
+    <!-- Minimum Mule runtime this connector supports. Property name required by mule-extensions-maven-plugin. -->
+    <min.mule.version>4.6.0</min.mule.version>
+    <unleash.client.version>12.3.0</unleash.client.version>
+    <junit.version>5.11.4</junit.version>
+    <mockito.version>5.14.2</mockito.version>
+    <assertj.version>3.27.3</assertj.version>
+    <maven.surefire.plugin.version>3.5.2</maven.surefire.plugin.version>
+  </properties>
+
+  <repositories>
+    <!-- The Mule SDK parent and plugins are published here, not on Maven Central. -->
+    <repository>
+      <id>mule</id>
+      <name>Mule Repository</name>
+      <url>https://repository.mulesoft.org/nexus/content/repositories/public/</url>
+    </repository>
+  </repositories>
+
+  <pluginRepositories>
+    <pluginRepository>
+      <id>mulesoft-plugin-releases</id>
+      <name>MuleSoft Release Repository</name>
+      <url>https://repository.mulesoft.org/releases/</url>
+    </pluginRepository>
+  </pluginRepositories>
+
+  <dependencies>
+    <dependency>
+      <groupId>io.getunleash</groupId>
+      <artifactId>unleash-client-java</artifactId>
+      <version>${unleash.client.version}</version>
+    </dependency>
+
+    <!-- Test -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-api</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-engine</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-params</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+      <version>${mockito.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <version>${assertj.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!-- Parent pins an old default; JUnit 5 needs a modern surefire. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>${maven.surefire.plugin.version}</version>
+      </plugin>
+    </plugins>
+  </build>
+</project>
