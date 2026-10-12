@@ -1,5 +1,7 @@
 # Mule Unleash Connector
 
+[![build](https://github.com/mxttwoods/mule-unleash-connector/actions/workflows/build.yml/badge.svg)](https://github.com/mxttwoods/mule-unleash-connector/actions/workflows/build.yml)
+
 Mule 4 connector for [Unleash](https://docs.getunleash.io/) feature flags, including **GitLab's
 Unleash-compatible feature flags API** (self-managed or GitLab.com). Evaluate flags and variants
 inside flows and hold the results in flow variables.
@@ -9,7 +11,7 @@ inside flows and hold the results in flow variables.
 | Piece | Version |
 |---|---|
 | Mule runtime | 4.6.0+ (`min.mule.version`; SDK 1.13.0 builds against the 4.13.0 runtime model) |
-| Java | 17 or 21 (`@JavaVersionSupport`) |
+| Java | 17 or 21 (`supportedJavaVersions` in `pom.xml`) |
 | Mule SDK | 1.13.0 (`mule-java-extension-parent`) |
 | Unleash Java client | 12.3.0 (`io.getunleash:unleash-client-java`) |
 | Maven | 3.9.8+ |
@@ -167,3 +169,7 @@ demo/unleash-demo-flow.xml      copy-paste flow sample
   per-IP rate limit with many workers).
 - MUnit coverage + Exchange publishing (needs EE credentials above).
 - Optional: custom Unleash strategies via `@Parameter`-supplied class names.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
