@@ -14,7 +14,7 @@ inside flows and hold the results in flow variables.
 | Java | 17 or 21 (`supportedJavaVersions` in `pom.xml`) |
 | Mule SDK | 1.13.0 (`mule-java-extension-parent`) |
 | Unleash Java client | 12.3.0 (`io.getunleash:unleash-client-java`) |
-| Maven | 3.9.8+ |
+| Maven | 3.9.16 via the bundled wrapper (`./mvnw`). The GitHub runner's default Maven fails in `mule-extensions-maven-plugin` with a resolver `NoSuchMethodError`. |
 | GitLab strategies supported | all-users, percent rollout, percent of users, user IDs, user list |
 
 ## Operations
@@ -99,10 +99,10 @@ maps are merged.
 
 ```bash
 export JAVA_HOME=<jdk-17-home>
-mvn -B clean package   # 24 tests, incl. live-HTTP round trip against a stub server
+./mvnw -B clean package   # 24 tests, incl. live-HTTP round trip against a stub server
 ```
 
-`mvn install` / `mvn verify` run the `integration-test` phase, which needs the **enterprise**
+`./mvnw install` / `./mvnw verify` run the `integration-test` phase, which needs the **enterprise**
 `munit-extensions-maven-plugin` from MuleSoft's EE repository. Add your Anypoint credentials to
 `~/.m2/settings.xml`:
 
@@ -118,7 +118,7 @@ mvn -B clean package   # 24 tests, incl. live-HTTP round trip against a stub ser
 publish to Exchange. Without them, install the packaged plugin locally for Studio testing:
 
 ```bash
-mvn -B org.apache.maven.plugins:maven-install-plugin:3.1.4:install-file \
+./mvnw -B org.apache.maven.plugins:maven-install-plugin:3.1.4:install-file \
   -Dfile=target/mule-unleash-connector-1.0.0-SNAPSHOT-mule-plugin.jar \
   -DgroupId=com.work -DartifactId=mule-unleash-connector \
   -Dversion=1.0.0-SNAPSHOT -Dclassifier=mule-plugin -Dpackaging=mule-extension \
