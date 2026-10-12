@@ -104,8 +104,7 @@ class UnleashLiveClientTest {
     }
   }
 
-  private UnleashOperations operationsWithLiveConnection() throws Exception {
-    Path backup = tempDir.resolve("repo.json");
+  private UnleashConnectionProvider liveProvider() {
     UnleashConnectionProvider provider = new UnleashConnectionProvider();
     provider.setUnleashApiUrl("http://127.0.0.1:" + server.getAddress().getPort() + "/api");
     provider.setInstanceId("test-instance");
@@ -115,10 +114,14 @@ class UnleashLiveClientTest {
     provider.setSendMetricsInterval(60);
     provider.setDisableMetrics(true);
     provider.setSynchronousFetch(true);
-    provider.setBackupFile(backup.toString());
+    provider.setBackupFile(tempDir.resolve("repo.json").toString());
     provider.setConnectTimeoutSeconds(5);
     provider.setReadTimeoutSeconds(5);
-    connection = provider.connect();
+    return provider;
+  }
+
+  private UnleashOperations operationsWithLiveConnection() throws Exception {
+    connection = liveProvider().connect();
     return new UnleashOperations();
   }
 
@@ -151,6 +154,42 @@ class UnleashLiveClientTest {
 
     assertThat(operations.isEnabled(config, connection, "vip-flag", false, vip)).isTrue();
     assertThat(operations.isEnabled(config, connection, "vip-flag", false, other)).isFalse();
+  }
+
+  @Test
+  void validationSucceedsWithoutConnectivityCheck() throws Exception {
+    // No server listens on this port and the check is off: pure local evaluation.
+    UnleashConnectionProvider provider = liveProvider();
+    provider.setUnleashApiUrl("http://127.0.0.1:1/api");
+    provider.setSynchronousFetch(false);
+    provider.setConnectTimeoutSeconds(2);
+    provider.setReadTimeoutSeconds(2);
+    connection = provider.connect();
+
+    assertThat(provider.validate(connection).isValid()).isTrue();
+  }
+
+  @Test
+  void connectivityCheckPassesAgainstLiveServer() throws Exception {
+    UnleashConnectionProvider provider = liveProvider();
+    provider.setTestConnectivity(true);
+    connection = provider.connect();
+
+    assertThat(provider.validate(connection).isValid()).isTrue();
+    assertThat(lastInstanceIdHeader).isEqualTo("test-instance");
+  }
+
+  @Test
+  void connectivityCheckFailsWhenServerDown() throws Exception {
+    UnleashConnectionProvider provider = liveProvider();
+    provider.setTestConnectivity(true);
+    provider.setConnectTimeoutSeconds(2);
+    provider.setReadTimeoutSeconds(2);
+    connection = provider.connect();
+    server.stop(0);
+    server = null;
+
+    assertThat(provider.validate(connection).isValid()).isFalse();
   }
 
   @Test

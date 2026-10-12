@@ -45,6 +45,9 @@ For Unleash OSS/Enterprise add `apiKey="<client-token>"` and use the client API 
 left empty for GitLab: the client sends the `UNLEASH-INSTANCEID` header and no `Authorization`
 header (the integration test asserts both against the stub; confirm against your GitLab instance).
 
+Set `testConnectivity="true"` on the connection to make Test Connection perform a live GET on the
+flags endpoint, so a bad URL or credentials fail fast instead of silently evaluating to defaults.
+
 ### Context (per operation, or config-wide defaults)
 
 | Field | Flow mapping example | Needed for |
@@ -89,7 +92,7 @@ maps are merged.
 
 ```bash
 export JAVA_HOME=<jdk-17-home>
-mvn -B clean package   # 15 tests, incl. live-HTTP round trip against a stub server
+mvn -B clean package   # 22 tests, incl. live-HTTP round trip against a stub server
 ```
 
 `mvn install` / `mvn verify` run the `integration-test` phase, which needs the **enterprise**
@@ -147,7 +150,7 @@ src/main/java/com/work/unleash/internal/
   UnleashContextParams.java      context group + merge logic
   UnleashVariantResult.java      DataWeave-friendly variant POJO
   UnleashErrorType.java          CONNECTION / EVALUATION
-src/test/java/...               15 tests, no Mule runtime needed
+src/test/java/...               22 tests, no Mule runtime needed
 demo/unleash-demo-flow.xml      copy-paste flow sample
 ```
 

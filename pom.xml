@@ -95,6 +95,17 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <version>${maven.surefire.plugin.version}</version>
       </plugin>
+      <!-- SDK 1.13 declares supported Java versions here, not via @JavaVersionSupport. -->
+      <plugin>
+        <groupId>org.mule.runtime.plugins</groupId>
+        <artifactId>mule-extensions-maven-plugin</artifactId>
+        <configuration>
+          <supportedJavaVersions>
+            <javaVersion>17</javaVersion>
+            <javaVersion>21</javaVersion>
+          </supportedJavaVersions>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
 </project>

@@ -13,9 +13,13 @@ import org.mule.sdk.api.annotation.semantics.security.Password;
 import org.mule.sdk.api.connectivity.CachedConnectionProvider;
 import org.mule.sdk.api.connectivity.ConnectionValidationResult;
 
+import java.io.IOException;
+import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
+import java.net.URL;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Creates and caches the {@link UnleashConnection} (one SDK client per configuration).
@@ -135,6 +139,14 @@ public class UnleashConnectionProvider implements CachedConnectionProvider<Unlea
   @Summary("Extra HTTP headers sent with every SDK request (e.g. corporate gateway tokens).")
   private Map<String, String> customHeaders;
 
+  @Parameter
+  @Optional(defaultValue = "false")
+  @DisplayName("Test connectivity")
+  @Summary("When true, connection validation performs a live GET on the flags endpoint with the "
+      + "configured timeouts and credentials, so a bad URL or credentials fail fast instead of "
+      + "silently evaluating to defaults. Leave false for pure local evaluation.")
+  private boolean testConnectivity;
+
   @Override
   public UnleashConnection connect() throws ConnectionException {
     try {
@@ -182,13 +194,53 @@ public class UnleashConnectionProvider implements CachedConnectionProvider<Unlea
   }
 
   /**
-   * Connectivity testing always succeeds: evaluation is local, so a stale cache still evaluates
-   * and connectivity problems surface as operation defaults at runtime, not as validation
-   * failures. A failing Test Connection here would only mean the client object is missing.
+   * Without the connectivity test (default), validation always succeeds: evaluation is local, so
+   * a stale cache still evaluates and connectivity problems surface as operation defaults at
+   * runtime, not as validation failures. With the test enabled, a live GET on the flags endpoint
+   * must return 2xx or validation fails fast.
    */
   @Override
   public ConnectionValidationResult validate(UnleashConnection connection) {
-    return ConnectionValidationResult.success();
+    if (!testConnectivity) {
+      return ConnectionValidationResult.success();
+    }
+    return checkFlagsEndpoint();
+  }
+
+  private ConnectionValidationResult checkFlagsEndpoint() {
+    HttpURLConnection http = null;
+    try {
+      String base = unleashApiUrl != null ? unleashApiUrl.replaceAll("/+$", "") : "";
+      URL url = new URL(base + "/client/features");
+      http = (HttpURLConnection) url.openConnection();
+      http.setRequestMethod("GET");
+      http.setConnectTimeout((int) TimeUnit.SECONDS.toMillis(connectTimeoutSeconds));
+      http.setReadTimeout((int) TimeUnit.SECONDS.toMillis(readTimeoutSeconds));
+      http.setRequestProperty("UNLEASH-APPNAME", appName);
+      http.setRequestProperty("UNLEASH-INSTANCEID", instanceId);
+      if (apiKey != null && !apiKey.isBlank()) {
+        http.setRequestProperty("Authorization", apiKey);
+      }
+      if (customHeaders != null) {
+        for (Map.Entry<String, String> header : customHeaders.entrySet()) {
+          http.setRequestProperty(header.getKey(), header.getValue());
+        }
+      }
+      int status = http.getResponseCode();
+      if (status >= 200 && status < 300) {
+        return ConnectionValidationResult.success();
+      }
+      return ConnectionValidationResult.failure(
+          "Unleash flags endpoint returned HTTP " + status + " for " + url,
+          new IOException("Unexpected HTTP status " + status));
+    } catch (Exception e) {
+      return ConnectionValidationResult.failure(
+          "Unleash flags endpoint unreachable: " + e.getMessage(), e);
+    } finally {
+      if (http != null) {
+        http.disconnect();
+      }
+    }
   }
 
   // Getters/setters (setters used by tests; the runtime injects fields directly).
@@ -319,5 +371,13 @@ public class UnleashConnectionProvider implements CachedConnectionProvider<Unlea
 
   public void setCustomHeaders(Map<String, String> customHeaders) {
     this.customHeaders = customHeaders;
+  }
+
+  public boolean isTestConnectivity() {
+    return testConnectivity;
+  }
+
+  public void setTestConnectivity(boolean testConnectivity) {
+    this.testConnectivity = testConnectivity;
   }
 }
