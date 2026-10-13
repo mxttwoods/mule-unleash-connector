@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:unleash="http://www.mulesoft.org/schema/mule/unleash"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/unleash http://www.mulesoft.org/schema/mule/unleash/current/mule-unleash.xsd">
+
+  <!-- CE-compatible: no ee:transform so it runs on both CE and EE trial runtimes.
+       Fill values from env or -D props; instanceId via secure props in real use. -->
+  <unleash:config name="Unleash_Test">
+    <unleash:connection unleashApiUrl="${unleash.api.url}"
+                        instanceId="${unleash.instance.id}"
+                        appName="${unleash.app.name}"
+                        apiKey="${unleash.api.key}"
+                        fetchTogglesInterval="15"
+                        disableMetrics="true"
+                        testConnectivity="true" />
+  </unleash:config>
+
+  <http:listener-config name="HTTP_Config">
+    <http:listener-connection host="0.0.0.0" port="8081" />
+  </http:listener-config>
+
+  <flow name="flag-check">
+    <http:listener config-ref="HTTP_Config" path="/check" />
+    <unleash:is-enabled config-ref="Unleash_Test"
+                        toggleName="${unleash.flag}"
+                        defaultValue="false"
+                        target="flagOn"
+                        userId="#[attributes.queryParams.userId default 'manual-test-user']" />
+    <set-payload value='#[%dw 2.0 output application/json --- {flag: "${unleash.flag}", enabled: vars.flagOn}]' />
+  </flow>
+</mule>

@@ -1,0 +1,17 @@
+{
+  "name": "unleash-test-app",
+  "minMuleVersion": "4.6.0",
+  "requiredProduct": "MULE",
+  "configs": ["unleash-test.xml"],
+  "redeploymentEnabled": true,
+  "classLoaderModelLoaderDescriptor": {
+    "id": "mule",
+    "attributes": {
+      "exportedResources": []
+    }
+  },
+  "bundleDescriptorLoader": {
+    "id": "mule",
+    "attributes": {}
+  }
+}

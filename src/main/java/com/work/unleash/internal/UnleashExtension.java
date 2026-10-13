@@ -2,8 +2,12 @@ package com.work.unleash.internal;
 
 import org.mule.sdk.api.annotation.Configurations;
 import org.mule.sdk.api.annotation.Extension;
+import org.mule.sdk.api.annotation.JavaVersionSupport;
 import org.mule.sdk.api.annotation.dsl.xml.Xml;
 import org.mule.sdk.api.annotation.error.ErrorTypes;
+
+import static org.mule.sdk.api.meta.JavaVersion.JAVA_17;
+import static org.mule.sdk.api.meta.JavaVersion.JAVA_21;
 
 /**
  * Entry point of the Unleash connector.
@@ -16,5 +20,6 @@ import org.mule.sdk.api.annotation.error.ErrorTypes;
 @Extension(name = "Unleash")
 @Configurations(UnleashConfiguration.class)
 @ErrorTypes(UnleashErrorType.class)
+@JavaVersionSupport({JAVA_17, JAVA_21})
 public class UnleashExtension {
 }
