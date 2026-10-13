@@ -95,7 +95,8 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <version>${maven.surefire.plugin.version}</version>
       </plugin>
-      <!-- SDK 1.13 declares supported Java versions here, not via @JavaVersionSupport. -->
+      <!-- SDK 1.13 declares supported Java versions here; runtime 4.9 also checks
+           @JavaVersionSupport, so UnleashExtension.java carries the same set. -->
       <plugin>
         <groupId>org.mule.runtime.plugins</groupId>
         <artifactId>mule-extensions-maven-plugin</artifactId>
