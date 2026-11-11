@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:unleash="http://www.mulesoft.org/schema/mule/unleash"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/unleash http://www.mulesoft.org/schema/mule/unleash/current/mule-unleash.xsd">
+
+  <!-- GET /flags/{flag}?userId=... -->
+  <flow name="is-enabled-example">
+    <http:listener config-ref="HTTP_Config" path="/flags/{flag}">
+      <http:response statusCode="#[vars.httpStatus default 200]" />
+    </http:listener>
+    <unleash:is-enabled config-ref="Unleash_Config"
+                        toggleName="#[attributes.uriParams.flag]"
+                        defaultValue="false"
+                        target="enabled"
+                        userId="#[attributes.queryParams.userId]" />
+    <set-payload value='#[output application/json --- {
+      flag: attributes.uriParams.flag,
+      userId: attributes.queryParams.userId,
+      enabled: vars.enabled
+    }]' />
+  </flow>
+
+  <!-- GET /variants/{flag}?userId=... -->
+  <flow name="get-variant-example">
+    <http:listener config-ref="HTTP_Config" path="/variants/{flag}">
+      <http:response statusCode="#[vars.httpStatus default 200]" />
+    </http:listener>
+    <unleash:get-variant config-ref="Unleash_Config"
+                         toggleName="#[attributes.uriParams.flag]"
+                         target="variant"
+                         userId="#[attributes.queryParams.userId]" />
+    <set-payload value='#[output application/json --- {
+      flag: attributes.uriParams.flag,
+      name: vars.variant.name,
+      enabled: vars.variant.enabled,
+      featureEnabled: vars.variant.featureEnabled,
+      payloadType: vars.variant.payloadType,
+      payloadValue: vars.variant.payloadValue
+    }]' />
+  </flow>
+
+  <!-- GET /payloads/{flag}?userId=...  Returns the raw payload, or 404 when there is none. -->
+  <flow name="get-variant-payload-example">
+    <http:listener config-ref="HTTP_Config" path="/payloads/{flag}">
+      <http:response statusCode="#[vars.httpStatus default 200]" />
+    </http:listener>
+    <unleash:get-variant-payload config-ref="Unleash_Config"
+                                 toggleName="#[attributes.uriParams.flag]"
+                                 userId="#[attributes.queryParams.userId]" />
+    <choice>
+      <when expression="#[payload == null]">
+        <set-variable variableName="httpStatus" value="404" />
+        <set-payload value='#[output application/json --- {error: "no payload"}]' />
+      </when>
+      <otherwise>
+        <set-payload value="#[payload]" mimeType="text/plain" />
+      </otherwise>
+    </choice>
+  </flow>
+</mule>

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:unleash="http://www.mulesoft.org/schema/mule/unleash"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/unleash http://www.mulesoft.org/schema/mule/unleash/current/mule-unleash.xsd">
+
+  <!-- Pick the target with -M-Denv=local|gitlab|unleash. Credentials are never in these files:
+       pass them as system properties or, in production, secure properties. -->
+  <global-property name="env" value="local" />
+  <configuration-properties file="config-${env}.properties" />
+
+  <configuration defaultErrorHandler-ref="api-error-handler" />
+
+  <!-- One config (one SDK client, one poller) per Unleash project, shared by every flow.
+       environment is the config-wide Default Context; operations can still override it. -->
+  <unleash:config name="Unleash_Config" environment="${unleash.environment}">
+    <unleash:connection unleashApiUrl="${unleash.api.url}"
+                        instanceId="${unleash.instance.id}"
+                        appName="${unleash.app.name}"
+                        apiKey="${unleash.api.key}"
+                        fetchTogglesInterval="${unleash.fetch.interval}"
+                        backupFile="${unleash.backup.file}"
+                        disableMetrics="true"
+                        testConnectivity="${unleash.test.connectivity}" />
+  </unleash:config>
+
+  <http:listener-config name="HTTP_Config">
+    <http:listener-connection host="0.0.0.0" port="${http.port}" />
+  </http:listener-config>
+
+  <!-- Flag evaluation falls back to defaults when Unleash is unreachable, so UNLEASH:EVALUATION
+       means a genuine evaluation fault, not an outage. -->
+  <error-handler name="api-error-handler">
+    <on-error-continue type="UNLEASH:EVALUATION">
+      <set-variable variableName="httpStatus" value="503" />
+      <set-payload value='#[output application/json --- {error: "flag evaluation failed", detail: error.description}]' />
+    </on-error-continue>
+    <on-error-continue type="ANY">
+      <set-variable variableName="httpStatus" value="500" />
+      <set-payload value='#[output application/json --- {error: error.errorType.identifier, detail: error.description}]' />
+    </on-error-continue>
+  </error-handler>
+</mule>

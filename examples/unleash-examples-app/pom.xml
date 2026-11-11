@@ -5,13 +5,15 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>com.work</groupId>
-  <artifactId>unleash-test-app</artifactId>
+  <artifactId>unleash-examples-app</artifactId>
   <version>1.0.0-SNAPSHOT</version>
   <packaging>mule-application</packaging>
-  <name>Unleash test app (no Docker)</name>
+  <name>Unleash connector examples</name>
 
   <properties>
-    <mule.version>4.9.0</mule.version>
+    <!-- Install the connector first with ./mvnw install in the repository root.
+         run-local.sh passes the root pom's version here. -->
+    <unleash.connector.version>1.0.1</unleash.connector.version>
     <mule.maven.plugin.version>4.5.3</mule.maven.plugin.version>
     <http.connector.version>1.11.0</http.connector.version>
     <maven.compiler.source>17</maven.compiler.source>
@@ -35,11 +37,10 @@
   </pluginRepositories>
 
   <dependencies>
-    <!-- Connector under test (installed via ./mvnw install in the parent project) -->
     <dependency>
       <groupId>com.work</groupId>
       <artifactId>mule-unleash-connector</artifactId>
-      <version>1.0.0</version>
+      <version>${unleash.connector.version}</version>
       <classifier>mule-plugin</classifier>
     </dependency>
     <dependency>
@@ -57,11 +58,6 @@
         <artifactId>mule-maven-plugin</artifactId>
         <version>${mule.maven.plugin.version}</version>
         <extensions>true</extensions>
-        <configuration>
-          <cloudHub2Deployment>
-            <uri>https://anypoint.mulesoft.com</uri>
-          </cloudHub2Deployment>
-        </configuration>
       </plugin>
     </plugins>
   </build>

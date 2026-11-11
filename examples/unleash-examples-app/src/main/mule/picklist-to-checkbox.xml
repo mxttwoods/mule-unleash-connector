@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:unleash="http://www.mulesoft.org/schema/mule/unleash"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/unleash http://www.mulesoft.org/schema/mule/unleash/current/mule-unleash.xsd">
+
+  <!-- Replace the Status__c picklist ("Active" / "Inactive") with an Is_Active__c checkbox in
+       stages, with Mule deployed before Salesforce changes:
+
+         flag off  Salesforce has only Status__c. Mule reads and writes Status__c.
+         flag on   Salesforce has Is_Active__c, backfilled. Mule reads Is_Active__c and writes
+                   both, so Status__c stays correct for anything still reading it and turning the
+                   flag off is a safe rollback.
+         later     A normal release stops writing Status__c and removes the flag.
+
+       The API is versioned separately: /v1 keeps the picklist string and /v2 has the boolean.
+       Both work in every stage, so API consumers move to /v2 on their own schedule.
+
+       Salesforce and database calls are simulated; each names the operation it stands in for. -->
+
+  <sub-flow name="resolve-is-active-flag">
+    <unleash:is-enabled config-ref="Unleash_Config"
+                        toggleName="salesforce-is-active-checkbox"
+                        defaultValue="false"
+                        target="checkboxLive" />
+  </sub-flow>
+
+  <!-- Reads the customer and normalizes it to {id, name, isActive} whichever field is live. -->
+  <sub-flow name="read-customer">
+    <flow-ref name="resolve-is-active-flag" />
+    <set-variable variableName="soql" value='#[output text/plain ---
+      "SELECT Id, Name, " ++ (if (vars.checkboxLive) "Is_Active__c" else "Status__c")
+        ++ " FROM Account WHERE Id = :id"]' />
+    <!-- Stands in for <salesforce:query> with vars.soql. -->
+    <set-payload value='#[output application/java --- [{
+      Id: attributes.uriParams.id,
+      Name: "Acme Corp",
+      (Is_Active__c: true) if (vars.soql contains "Is_Active__c"),
+      (Status__c: "Active") if (vars.soql contains "Status__c")
+    }]]' />
+    <set-payload value='#[output application/java --- payload[0] then (account) -> {
+      id: account.Id,
+      name: account.Name,
+      isActive: if (vars.checkboxLive) account.Is_Active__c else account.Status__c == "Active"
+    }]' />
+  </sub-flow>
+
+  <!-- GET /v1/customers/{id}  The original contract: status is the picklist string. -->
+  <flow name="get-customer-v1">
+    <http:listener config-ref="HTTP_Config" path="/v1/customers/{id}">
+      <http:response statusCode="#[vars.httpStatus default 200]" />
+    </http:listener>
+    <flow-ref name="read-customer" />
+    <set-payload value='#[output application/json --- {
+      id: payload.id,
+      name: payload.name,
+      status: if (payload.isActive) "Active" else "Inactive"
+    }]' />
+  </flow>
+
+  <!-- GET /v2/customers/{id}  The new contract, available before Salesforce changes. -->
+  <flow name="get-customer-v2">
+    <http:listener config-ref="HTTP_Config" path="/v2/customers/{id}">
+      <http:response statusCode="#[vars.httpStatus default 200]" />
+    </http:listener>
+    <flow-ref name="read-customer" />
+    <set-payload value="#[output application/json --- payload]" />
+  </flow>
+
+  <!-- POST /jobs/customer-sync  The body of the database-to-Bulk-API job. In production a
+       <scheduler> triggers it every 10 minutes; the HTTP trigger lets you run it on demand. -->
+  <flow name="customer-sync-job">
+    <http:listener config-ref="HTTP_Config" path="/jobs/customer-sync" allowedMethods="POST">
+      <http:response statusCode="#[vars.httpStatus default 200]" />
+    </http:listener>
+
+    <!-- Evaluate once per run and use that answer for every row. Re-checking per row or per
+         batch would let a flip during the run produce a Bulk job with mixed columns. -->
+    <flow-ref name="resolve-is-active-flag" />
+
+    <!-- Stands in for <db:select> of the changed customers. -->
+    <set-payload value='#[output application/java --- [
+      {external_id: "C-1001", name: "Acme Corp", active: true},
+      {external_id: "C-1002", name: "Globex", active: false}
+    ]]' />
+
+    <!-- Bulk API rejects the whole job when a CSV column names a field that does not exist, so
+         the column set follows the flag. -->
+    <set-variable variableName="csv" value='#[output text/plain --- write(payload map (row) -> {
+      External_Id__c: row.external_id,
+      Name: row.name,
+      (Is_Active__c: row.active) if (vars.checkboxLive),
+      Status__c: if (row.active) "Active" else "Inactive"
+    }, "application/csv", {quoteValues: false})]' />
+
+    <!-- Stands in for the Salesforce connector's Create Job Bulk API v2 operation: upsert on
+         Account by External_Id__c with vars.csv. Logging the mapping makes each run auditable. -->
+    <logger level="INFO" message='#["customer-sync: " ++ (if (vars.checkboxLive) "checkbox" else "picklist") ++ " mapping"]' />
+    <set-payload value='#[output application/json --- {
+      mapping: if (vars.checkboxLive) "checkbox" else "picklist",
+      csv: vars.csv
+    }]' />
+  </flow>
+</mule>
