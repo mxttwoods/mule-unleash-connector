@@ -23,7 +23,7 @@ jobs:
           cache: maven
       - run: ./mvnw -v
       - run: ./mvnw -B clean verify
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: matrix.java == '17'
         with:
           name: mule-plugin
