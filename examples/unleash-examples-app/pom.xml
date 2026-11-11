@@ -15,7 +15,7 @@
          run-local.sh passes the root pom's version here. -->
     <unleash.connector.version>1.0.1</unleash.connector.version>
     <mule.maven.plugin.version>4.5.3</mule.maven.plugin.version>
-    <http.connector.version>1.11.0</http.connector.version>
+    <http.connector.version>1.12.2</http.connector.version>
     <maven.compiler.source>17</maven.compiler.source>
     <maven.compiler.target>17</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
