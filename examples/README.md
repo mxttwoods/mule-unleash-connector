@@ -10,7 +10,7 @@ export JAVA_HOME=<jdk-17-or-21-home>
 examples/run-local.sh
 ```
 
-The script installs the connector, packages the app, downloads Mule CE 4.9.0 once to
+The script installs the connector, packages the app, downloads Mule CE 4.12.0 once to
 `~/.cache/mule-unleash-examples` (or uses `MULE_HOME`), deploys, and checks every endpoint. It
 takes about a minute after the first download. CI runs the same script.
 

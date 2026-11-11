@@ -50,7 +50,7 @@ examples:
   cache:
     - key: maven
       paths: [.m2/]
-    - key: mule-ce-4.9.0
+    - key: mule-ce-4.12.0
       paths: [.cache/]
   variables:
     XDG_CACHE_HOME: "$CI_PROJECT_DIR/.cache"
