@@ -23,7 +23,7 @@
   <properties>
     <!-- Minimum Mule runtime this connector supports. Property name required by mule-extensions-maven-plugin. -->
     <min.mule.version>4.6.0</min.mule.version>
-    <unleash.client.version>12.3.0</unleash.client.version>
+    <unleash.client.version>12.3.2</unleash.client.version>
     <junit.version>5.11.4</junit.version>
     <mockito.version>5.14.2</mockito.version>
     <assertj.version>3.27.3</assertj.version>
