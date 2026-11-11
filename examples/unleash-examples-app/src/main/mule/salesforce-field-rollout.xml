@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:unleash="http://www.mulesoft.org/schema/mule/unleash"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/unleash http://www.mulesoft.org/schema/mule/unleash/current/mule-unleash.xsd">
+
+  <!-- Ship an API field before the Salesforce field behind it exists.
+
+       Deploy this any time before the Salesforce maintenance window with the flag off: the API
+       behaves exactly as before and never names Loyalty_Tier__c. Once the field is deployed in
+       Salesforce, turn the flag on and every worker picks it up within fetchTogglesInterval, with
+       no Mule redeploy. Turning it off again is the rollback.
+
+       Salesforce calls are simulated so the example runs without an org; each simulated step
+       names the connector operation it stands in for. -->
+
+  <!-- Evaluate once per request and reuse the variable, so the query, the write and the response
+       all agree even if the flag flips mid-request. defaultValue="false" means an unreachable
+       flag server falls back to the pre-window behavior. -->
+  <sub-flow name="resolve-loyalty-tier-flag">
+    <unleash:is-enabled config-ref="Unleash_Config"
+                        toggleName="salesforce-loyalty-tier"
+                        defaultValue="false"
+                        target="loyaltyTierLive" />
+  </sub-flow>
+
+  <!-- GET /accounts/{id} -->
+  <flow name="get-account">
+    <http:listener config-ref="HTTP_Config" path="/accounts/{id}">
+      <http:response statusCode="#[vars.httpStatus default 200]" />
+    </http:listener>
+    <flow-ref name="resolve-loyalty-tier-flag" />
+
+    <!-- Selecting a field that does not exist yet fails the whole SOQL query, so the field list
+         is gated, not just the response mapping. -->
+    <set-variable variableName="soql" value='#[output text/plain ---
+      "SELECT " ++ ((["Id", "Name", "Industry"] ++ (if (vars.loyaltyTierLive) ["Loyalty_Tier__c"] else []))
+        joinBy ", ") ++ " FROM Account WHERE Id = :id"]' />
+
+    <!-- Stands in for:
+         <salesforce:query config-ref="Salesforce_Config">
+           <salesforce:salesforce-query>#[vars.soql]</salesforce:salesforce-query>
+           <salesforce:parameters>#[{id: attributes.uriParams.id}]</salesforce:parameters>
+         </salesforce:query> -->
+    <set-payload value='#[output application/java --- [{
+      Id: attributes.uriParams.id,
+      Name: "Acme Corp",
+      Industry: "Manufacturing",
+      (Loyalty_Tier__c: "Gold") if (vars.soql contains "Loyalty_Tier__c")
+    }]]' />
+
+    <set-payload value='#[output application/json --- payload[0] then (account) -> {
+      id: account.Id,
+      name: account.Name,
+      industry: account.Industry,
+      (loyaltyTier: account.Loyalty_Tier__c) if (vars.loyaltyTierLive)
+    }]' />
+  </flow>
+
+  <!-- POST /accounts  {"name": "...", "industry": "...", "loyaltyTier": "..."}
+       Clients may start sending loyaltyTier as soon as this is deployed. Until the flag is on it
+       is accepted and not written, because Salesforce would reject an unknown field. -->
+  <flow name="create-account">
+    <http:listener config-ref="HTTP_Config" path="/accounts" allowedMethods="POST">
+      <http:response statusCode="#[vars.httpStatus default 201]" />
+    </http:listener>
+    <flow-ref name="resolve-loyalty-tier-flag" />
+
+    <set-variable variableName="record" value='#[output application/java --- {
+      Name: payload.name,
+      Industry: payload.industry,
+      (Loyalty_Tier__c: payload.loyaltyTier) if (vars.loyaltyTierLive and payload.loyaltyTier != null)
+    }]' />
+
+    <!-- Stands in for:
+         <salesforce:create config-ref="Salesforce_Config" type="Account">
+           <salesforce:records>#[[vars.record]]</salesforce:records>
+         </salesforce:create> -->
+    <set-payload value='#[output application/json --- {
+      salesforceRecord: vars.record,
+      loyaltyTierWritten: vars.record.Loyalty_Tier__c != null
+    }]' />
+  </flow>
+</mule>

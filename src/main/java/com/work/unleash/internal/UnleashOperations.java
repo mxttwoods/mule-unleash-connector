@@ -5,6 +5,7 @@ import static org.mule.sdk.api.annotation.param.MediaType.ANY;
 import io.getunleash.UnleashContext;
 import io.getunleash.variant.Payload;
 import com.work.unleash.api.UnleashVariantResult;
+import org.mule.sdk.api.annotation.error.Throws;
 import org.mule.sdk.api.annotation.param.Config;
 import org.mule.sdk.api.annotation.param.Connection;
 import org.mule.sdk.api.annotation.param.MediaType;
@@ -18,6 +19,7 @@ import org.mule.sdk.api.exception.ModuleException;
  * Flag evaluation operations. Results are meant to be held in flow variables via {@code target},
  * e.g. {@code target="newCheckoutEnabled"}, and consumed with DataWeave or a Choice router.
  */
+@Throws(UnleashErrorProvider.class)
 public class UnleashOperations {
 
   @MediaType(value = ANY, strict = false)

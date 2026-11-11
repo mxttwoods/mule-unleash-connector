@@ -12,7 +12,7 @@
 
   <groupId>com.work</groupId>
   <artifactId>mule-unleash-connector</artifactId>
-  <version>1.0.0</version>
+  <version>1.0.1</version>
   <packaging>mule-extension</packaging>
 
   <name>Mule Unleash Connector</name>
@@ -94,6 +94,20 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <version>${maven.surefire.plugin.version}</version>
+      </plugin>
+      <!-- *IT tests read the extension model, which only exists after package. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <version>${maven.surefire.plugin.version}</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>integration-test</goal>
+              <goal>verify</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
       <!-- SDK 1.13 declares supported Java versions here; runtime 4.9 also checks
            @JavaVersionSupport, so UnleashExtension.java carries the same set. -->
