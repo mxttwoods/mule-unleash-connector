@@ -18,9 +18,9 @@ Usage: examples/run-local.sh [--keep-running]
 
 Environment:
   JAVA_HOME     JDK 17 or 21.
-  MULE_HOME     A Mule 4.9+ standalone runtime to deploy to. When unset, Mule CE $MULE_VERSION
+  MULE_HOME     A Mule 4.12+ standalone runtime to deploy to. When unset, Mule CE $MULE_VERSION
                 is downloaded once to ~/.cache/mule-unleash-examples.
-  MULE_VERSION  CE version to download (default 4.9.0).
+  MULE_VERSION  CE version to download (default 4.12.0).
   HTTP_PORT     Port for the example endpoints (default 8081).
   STUB_PORT     Port for the fake Unleash server (default 4242).
 EOF
@@ -44,7 +44,7 @@ app_dir="$repo_root/examples/unleash-examples-app"
 app_name="unleash-examples-app"
 http_port="${HTTP_PORT:-8081}"
 stub_port="${STUB_PORT:-4242}"
-mule_version="${MULE_VERSION:-4.9.0}"
+mule_version="${MULE_VERSION:-4.12.0}"
 base_url="http://127.0.0.1:$http_port"
 stub_url="http://127.0.0.1:$stub_port"
 

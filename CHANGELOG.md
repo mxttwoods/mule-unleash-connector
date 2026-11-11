@@ -11,6 +11,9 @@
   staging a Salesforce change around a maintenance window.
 - Add `.gitlab-ci.yml` to build, run the examples, and publish to Anypoint Exchange from GitLab.
 - Add `ExtensionModelIT`, which checks the generated extension model on `./mvnw verify`.
+- Update dependencies: Unleash Java client 12.3.2, Mule SDK parent 1.13.2, and test and build
+  tooling. The examples now run on Mule CE 4.12.0 with HTTP connector 1.12.2, which needs a
+  runtime that knows Java 25.
 
 ## 1.0.0
 

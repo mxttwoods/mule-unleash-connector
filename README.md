@@ -10,10 +10,10 @@ inside flows and hold the results in flow variables.
 
 | Piece | Version |
 |---|---|
-| Mule runtime | 4.6.0+ (`min.mule.version`; SDK 1.13.0 builds against the 4.13.0 runtime model) |
+| Mule runtime | 4.6.0+ (`min.mule.version`; SDK 1.13.2 builds against the 4.13.0 runtime model) |
 | Java | 17 or 21 (`supportedJavaVersions` in `pom.xml`) |
-| Mule SDK | 1.13.0 (`mule-java-extension-parent`) |
-| Unleash Java client | 12.3.0 (`io.getunleash:unleash-client-java`) |
+| Mule SDK | 1.13.2 (`mule-java-extension-parent`) |
+| Unleash Java client | 12.3.2 (`io.getunleash:unleash-client-java`) |
 | Maven | 3.9.16 via the bundled wrapper (`./mvnw`). The GitHub runner's default Maven fails in `mule-extensions-maven-plugin` with a resolver `NoSuchMethodError`. |
 | GitLab strategies supported | all-users, percent rollout, percent of users, user IDs, user list |
 
@@ -91,7 +91,7 @@ maps are merged.
 
 ```bash
 export JAVA_HOME=<jdk-17-home>
-examples/run-local.sh            # builds, deploys to Mule CE 4.9.0, checks every endpoint
+examples/run-local.sh            # builds, deploys to Mule CE 4.12.0, checks every endpoint
 examples/run-local.sh --keep-running
 ```
 

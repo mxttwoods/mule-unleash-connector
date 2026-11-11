@@ -4,6 +4,11 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Maven is pinned through the wrapper on purpose (see the README's Compatibility table), and
+    # the wrapper updater cannot resolve the Mule parent POM, which is not on Maven Central.
+    ignore:
+      - dependency-name: org.apache.maven:apache-maven
+      - dependency-name: org.apache.maven.wrapper:maven-wrapper
   - package-ecosystem: maven
     directory: /examples/unleash-examples-app
     schedule:
