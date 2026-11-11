@@ -86,8 +86,8 @@ maps are merged.
 
 ## Examples
 
-[`examples/`](examples/) has a runnable Mule app with every operation and a Salesforce field
-rollout, plus a fake Unleash server, so it runs with no GitLab, Salesforce, Docker or EE license:
+[`examples/`](examples/) has a runnable Mule app with every operation and two Salesforce
+[migration patterns](#migration-patterns), plus a fake Unleash server, so it runs with no GitLab, Salesforce, Docker or EE license:
 
 ```bash
 export JAVA_HOME=<jdk-17-home>
@@ -97,14 +97,47 @@ examples/run-local.sh --keep-running
 
 CI runs the same script on every change.
 
-## Releasing an API field ahead of a Salesforce change
+## Migration patterns
 
-Deploy the Mule change before the Salesforce maintenance window with the flag off, then turn the
-flag on during the window. `examples/unleash-examples-app/src/main/mule/salesforce-field-rollout.xml`
-is the worked example, and `run-local.sh` rehearses the flip and the rollback.
+These patterns let you deploy Mule before a Salesforce change and switch over in the Salesforce
+maintenance window with a flag flip instead of a redeploy. Each one is runnable in
+[`examples/`](examples/), and `run-local.sh` rehearses the flip and the rollback.
 
-1. Create the flag in GitLab (**Deploy > Feature flags**) with a strategy scoped to the
-   environment that matches the connection's `appName`, for example `production`. Leave it off.
+### Flags, versioned endpoints, or both
+
+They solve different problems, and a Salesforce migration usually needs both.
+
+- **A versioned endpoint** (`/v1`, `/v2`) protects API consumers. Use one when the API contract
+  itself changes in a breaking way, such as a string field becoming a boolean. Consumers move to
+  `/v2` on their own schedule, and `/v1` keeps working until they have.
+- **A flag** decouples your deployment from Salesforce's. It tells Mule which Salesforce schema is
+  live, so the same deployed code works before and after the window.
+
+Keep both API versions on one implementation that normalizes the Salesforce record, and let the
+flag decide only how Mule reads and writes Salesforce. Then the API versions never depend on the
+Salesforce schema, and the flag never changes the API contract.
+
+### Choosing a flag strategy
+
+GitLab scopes every strategy to environments, and the connector's `appName` is the environment it
+matches, so you can turn a flag on in a sandbox's window before production's.
+
+| Strategy | Use it for | Context it needs |
+|---|---|---|
+| All users, scoped to an environment | Schema changes and batch jobs. The Salesforce field exists for everyone or no one. | None |
+| Percent rollout, Percent of users | Gradual exposure of a behavior change | `userId` or `sessionId` |
+| User IDs, User list | Internal testers or pilot customers first | `userId` |
+
+Don't use a percentage for a schema flag or a batch job. A job has no user, so a percentage can
+split one run across both schemas.
+
+### Adding a field ahead of a Salesforce change
+
+Worked example: `examples/unleash-examples-app/src/main/mule/salesforce-field-rollout.xml`.
+
+1. Create the flag in GitLab (**Deploy > Feature flags**) with an All users strategy scoped to
+   the environment that matches the connection's `appName`, for example `production`. Leave it
+   off.
 2. In the flow, evaluate the flag once per request into a variable with `defaultValue="false"`,
    and gate everything that names the new field on it: the SOQL field list (selecting a missing
    field fails the whole query), the record you write, and the response mapping.
@@ -113,6 +146,49 @@ is the worked example, and `run-local.sh` rehearses the flip and the rollback.
    on it, turn the flag on. Each worker picks it up on its next poll, so allow up to
    `fetchTogglesInterval` seconds. No redeploy is needed. Turning the flag off is the rollback.
 5. Once it is stable, remove the flag and the old branch in a normal release.
+
+### Changing a picklist to a checkbox
+
+Worked example: `examples/unleash-examples-app/src/main/mule/picklist-to-checkbox.xml`. It has a
+`GET` on `/v1` and `/v2` and the body of a 10-minute database-to-Bulk-API job, and all three keep
+working before, during and after the change.
+
+Salesforce can change a picklist field's type to checkbox in place, mapping picklist values to
+checked and unchecked. Avoid that for an integrated field. The field keeps its API name but
+changes type at the moment Salesforce deploys, so nothing can switch over before or with it: a
+job run between the change and your flag flip sends picklist values to a checkbox. Reports,
+flows and validation rules that use the field change at the same moment, and there is no clean
+way back. Instead, add a new field and move to it in stages:
+
+| Stage | Salesforce | Mule (`salesforce-is-active-checkbox`) |
+|---|---|---|
+| Day before | Only `Status__c` (picklist) | Deployed, flag off. Reads and writes `Status__c`. `/v2` already returns `isActive`, derived from the picklist. |
+| Window | Add `Is_Active__c` (checkbox), grant field-level security, backfill it from `Status__c` | Flag on. Reads `Is_Active__c`. Writes both fields, so `Status__c` stays correct for anything still using it, and flag off is a safe rollback. |
+| Later | Retire `Status__c` once nothing reads it | A normal release stops writing `Status__c` and removes the flag and `/v1`. |
+
+Decide the mapping before the backfill. A picklist can hold more than two values, or none, but a
+checkbox has only checked and unchecked, so write down where each value and blank goes.
+
+For the batch job:
+
+- **Evaluate the flag once at the start of each run** and use that answer for every row. Checking
+  per row or per batch lets a flip during the 10-minute run produce a Bulk job with mixed columns.
+  A run that started before the flip finishes on the old mapping, which still works because the
+  old field still exists.
+- **Gate the CSV columns, not only the values.** Bulk API fails the job when a column header names
+  a field it cannot find, including one the integration user has no field-level security on.
+- **Make each run safe to repeat.** Upsert on an external ID, so if a run fails in the window the
+  next run sends the same rows again and corrects them.
+- **Log which mapping each run used**, so you can tell afterwards which runs ran before the flip.
+
+The flag tells Mule what you have decided. Salesforce can also tell Mule what exists: the
+Salesforce connector's describe operation returns each field and its type. If you must change the
+type in place, describe the object once at the start of each run and choose the write format from
+the field's type. That switches at the moment Salesforce does, with no flag. For the new-field
+approach, keep the flag, because a field that exists may not be backfilled yet, and use describe
+as a guard: if the flag is on but `Is_Active__c` is missing, use the old mapping and alert.
+
+### What happens when the flag server is down
 
 The fallback is the pre-window behavior. A worker that cannot reach GitLab uses its last-known
 flags from the backup file, or `defaultValue` if it has none, which on CloudHub 2.0 is the case
@@ -150,16 +226,17 @@ The project has no MUnit suites, so the parent's EE-only MUnit plugin is unbound
 
 To use the connector from Studio or a local app build, install it into your local Maven
 repository with `./mvnw -B install`. Without building, download
-`mule-unleash-connector-1.0.0-mule-plugin.jar` (the latest release; 1.0.1 is not released yet) from the
-[v1.0.0 release](https://github.com/mxttwoods/mule-unleash-connector/releases/tag/v1.0.0) and
-install that file:
+`mule-unleash-connector-1.0.0-mule-plugin.jar` from the
+[v1.0.0 release](https://github.com/mxttwoods/mule-unleash-connector/releases/tag/v1.0.0) (1.0.1
+is not released yet) and install it with the POM from that tag:
 
 ```bash
+git show v1.0.0:pom.xml > mule-unleash-connector-1.0.0.pom
 ./mvnw -B org.apache.maven.plugins:maven-install-plugin:3.1.4:install-file \
   -Dfile=mule-unleash-connector-1.0.0-mule-plugin.jar \
   -DgroupId=com.work -DartifactId=mule-unleash-connector \
   -Dversion=1.0.0 -Dclassifier=mule-plugin -Dpackaging=mule-extension \
-  -DpomFile=pom.xml
+  -DpomFile=mule-unleash-connector-1.0.0.pom
 ```
 
 then depend on it from your app:

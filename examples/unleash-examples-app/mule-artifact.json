@@ -2,7 +2,7 @@
   "name": "unleash-examples-app",
   "minMuleVersion": "4.6.0",
   "requiredProduct": "MULE",
-  "configs": ["global.xml", "flags.xml", "salesforce-field-rollout.xml"],
+  "configs": ["global.xml", "flags.xml", "salesforce-field-rollout.xml", "picklist-to-checkbox.xml"],
   "redeploymentEnabled": true,
   "classLoaderModelLoaderDescriptor": {
     "id": "mule",

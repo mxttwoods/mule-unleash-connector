@@ -1,7 +1,7 @@
 """Minimal Unleash-compatible stub for the examples (no Docker, no GitLab).
 
-Serves the flags from UnleashLiveClientTest.FEATURES_JSON, plus salesforce-loyalty-tier (off),
-under any base path, so both URL shapes work:
+Serves the flags from UnleashLiveClientTest.FEATURES_JSON, plus two Salesforce migration flags
+that start off, under any base path, so both URL shapes work:
   http://127.0.0.1:4242/api                                    (Unleash server)
   http://127.0.0.1:4242/api/v4/feature_flags/unleash/42        (GitLab project)
 
@@ -45,6 +45,12 @@ FEATURES = {
         {
             "name": "salesforce-loyalty-tier",
             "description": "expose Loyalty_Tier__c once the Salesforce field exists",
+            "enabled": False,
+            "strategies": [{"name": "default"}],
+        },
+        {
+            "name": "salesforce-is-active-checkbox",
+            "description": "read Is_Active__c instead of the Status__c picklist",
             "enabled": False,
             "strategies": [{"name": "default"}],
         },

@@ -15,7 +15,7 @@ The script installs the connector, packages the app, downloads Mule CE 4.9.0 onc
 takes about a minute after the first download. CI runs the same script.
 
 It deploys with the flag server down first, to show the app still starts and serves defaults,
-then starts the server and flips `salesforce-loyalty-tier` on and off to rehearse a maintenance
+then starts the server and flips each Salesforce flag on and off to rehearse a maintenance
 window.
 
 Add `--keep-running` to try the endpoints yourself:
@@ -25,6 +25,8 @@ curl 'http://127.0.0.1:8081/flags/vip-flag?userId=vip-user'
 curl http://127.0.0.1:8081/accounts/001xx0000001
 curl -X POST 'http://127.0.0.1:4242/admin/flags/salesforce-loyalty-tier?enabled=true'
 curl http://127.0.0.1:8081/accounts/001xx0000001      # loyaltyTier appears within 5 seconds
+curl -X POST http://127.0.0.1:8081/jobs/customer-sync  # CSV for the Bulk API, picklist mapping
+curl -X POST 'http://127.0.0.1:4242/admin/flags/salesforce-is-active-checkbox?enabled=true'
 ```
 
 ## What is in the app
@@ -33,10 +35,14 @@ curl http://127.0.0.1:8081/accounts/001xx0000001      # loyaltyTier appears with
 |---|---|---|
 | [`global.xml`](unleash-examples-app/src/main/mule/global.xml) | | One shared config, properties per target, an `UNLEASH:EVALUATION` handler |
 | [`flags.xml`](unleash-examples-app/src/main/mule/flags.xml) | `GET /flags/{flag}`, `GET /variants/{flag}`, `GET /payloads/{flag}` | `is-enabled`, `get-variant` and `get-variant-payload`, with `?userId=` as context |
-| [`salesforce-field-rollout.xml`](unleash-examples-app/src/main/mule/salesforce-field-rollout.xml) | `GET /accounts/{id}`, `POST /accounts` | Shipping an API field before the Salesforce field exists. See the runbook in the [main README](../README.md#releasing-an-api-field-ahead-of-a-salesforce-change). |
+| [`salesforce-field-rollout.xml`](unleash-examples-app/src/main/mule/salesforce-field-rollout.xml) | `GET /accounts/{id}`, `POST /accounts` | Shipping an API field before the Salesforce field exists |
+| [`picklist-to-checkbox.xml`](unleash-examples-app/src/main/mule/picklist-to-checkbox.xml) | `GET /v1/customers/{id}`, `GET /v2/customers/{id}`, `POST /jobs/customer-sync` | Moving a picklist to a checkbox in stages, with versioned endpoints and a database-to-Bulk-API job |
 
-Salesforce calls are simulated with `set-payload`. A comment next to each one shows the
-Salesforce connector operation it stands in for.
+The [migration patterns](../README.md#migration-patterns) in the main README explain both
+Salesforce examples.
+
+Salesforce and database calls are simulated with `set-payload`. A comment next to each one names
+the operation it stands in for.
 
 The fake server's flags are in [`fake-unleash.py`](fake-unleash.py). It serves any base path, so
 the app points at it with a GitLab-style URL and no API key, the way it would point at GitLab.

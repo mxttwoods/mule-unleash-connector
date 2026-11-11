@@ -2,10 +2,10 @@
 # Builds the connector and the examples app, deploys the app to a Mule CE runtime against
 # examples/fake-unleash.py, and checks every example endpoint. CI runs this same script.
 #
-# It rehearses the two moments that matter in production:
+# It rehearses the moments that matter in production:
 #   1. The app deploys while the flag server is down, and starts evaluating once it is back.
 #   2. A flag flipped on the server (the Salesforce maintenance window) reaches the running app
-#      without a redeploy.
+#      without a redeploy, for both the API and the bulk job, and flipping it back rolls back.
 
 set -euo pipefail
 
@@ -127,12 +127,12 @@ check() {
   fi
 }
 
-# Polls GET $1 until the body matches the regex $2, failing after $3 seconds. Prints the seconds
-# it took.
+# Polls $method $1 until the body matches the regex $2, failing after $3 seconds. Prints the
+# seconds it took.
 wait_for() {
   local path="$1" pattern="$2" timeout="$3" body="" start=$SECONDS
   while ((SECONDS - start < timeout)); do
-    body="$(curl -s -f "$base_url$path" | tr -d '\n' || true)"
+    body="$(curl -s -f -X "${method:-GET}" "$base_url$path" | tr -d '\n' || true)"
     if [[ "$body" =~ $pattern ]]; then
       echo $((SECONDS - start))
       return 0
@@ -141,6 +141,15 @@ wait_for() {
   done
   echo "FAIL GET $path never matched /$pattern/ in ${timeout}s, last: ${body:-<no response>}" >&2
   return 1
+}
+
+wait_for_post() {
+  method=POST wait_for "$@"
+}
+
+# Turns flag $1 on or off ($2 = true|false) on the fake server, like toggling it in GitLab.
+flip() {
+  curl -s -f -o /dev/null -X POST "$stub_url/admin/flags/$1?enabled=$2"
 }
 
 echo "==> Deploying to $MULE_HOME with the flag server down"
@@ -157,7 +166,7 @@ cp "$app_jar" "$MULE_HOME/apps/$app_name.jar"
   exec "$java_bin" \
     -Dmule.home="$MULE_HOME" -Dmule.base="$MULE_HOME" \
     -Dmule.bootstrap.container.wrapper.class=org.mule.runtime.module.boot.internal.MuleContainerBasicWrapper \
-    -Djava.net.preferIPv4Stack=TRUE -XX:MaxMetaspaceSize=256m \
+    -Xms1024m -Xmx1024m -Djava.net.preferIPv4Stack=TRUE -XX:MaxMetaspaceSize=256m \
     -Djava.locale.providers=COMPAT,CLDR,SPI -Dlog4j2.disable.jmx=true \
     -Dhttp.port="$http_port" \
     -Dunleash.api.url="$stub_url/api/v4/feature_flags/unleash/42" \
@@ -204,17 +213,38 @@ check GET "/accounts/001xx0000001" 200 '^\{[^}]*"industry": ?"Manufacturing" *\}
 check POST "/accounts" 201 '"loyaltyTierWritten": ?false' "$account"
 
 echo "==> Salesforce field rollout: flipping salesforce-loyalty-tier on"
-curl -s -f -o /dev/null -X POST "$stub_url/admin/flags/salesforce-loyalty-tier?enabled=true"
+flip salesforce-loyalty-tier true
 took="$(wait_for "/accounts/001xx0000001" '"loyaltyTier": ?"Gold"' 60)" || failures=$((failures + 1))
 [[ -z "$took" ]] || echo "ok   flag flip reached the app in ${took}s with no redeploy"
 check GET "/accounts/001xx0000001" 200 '"loyaltyTier": ?"Gold"'
 check POST "/accounts" 201 '"Loyalty_Tier__c": ?"Gold".*"loyaltyTierWritten": ?true' "$account"
 
 echo "==> Salesforce field rollout: rolling back (flag off)"
-curl -s -f -o /dev/null -X POST "$stub_url/admin/flags/salesforce-loyalty-tier?enabled=false"
+flip salesforce-loyalty-tier false
 took="$(wait_for "/accounts/001xx0000001" '^\{[^}]*"industry": ?"Manufacturing" *\}$' 60)" \
   || failures=$((failures + 1))
 [[ -z "$took" ]] || echo "ok   rollback reached the app in ${took}s"
+
+old_csv='"csv": ?"External_Id__c,Name,Status__c\\[rn]'
+new_csv='"csv": ?"External_Id__c,Name,Is_Active__c,Status__c\\[rn]'
+
+echo "==> Picklist to checkbox: Salesforce still has only the picklist (flag off)"
+check GET "/v1/customers/001xx0000001" 200 '"status": ?"Active"'
+check GET "/v2/customers/001xx0000001" 200 '"isActive": ?true'
+check POST "/jobs/customer-sync" 200 "\"mapping\": ?\"picklist\".*$old_csv"
+
+echo "==> Picklist to checkbox: Is_Active__c deployed and backfilled, flipping the flag on"
+flip salesforce-is-active-checkbox true
+took="$(wait_for_post "/jobs/customer-sync" '"mapping": ?"checkbox"' 60)" || failures=$((failures + 1))
+[[ -z "$took" ]] || echo "ok   bulk job switched mapping ${took}s after the flip"
+check POST "/jobs/customer-sync" 200 "$new_csv"
+check GET "/v1/customers/001xx0000001" 200 '"status": ?"Active"'
+check GET "/v2/customers/001xx0000001" 200 '"isActive": ?true'
+
+echo "==> Picklist to checkbox: rolling back (flag off)"
+flip salesforce-is-active-checkbox false
+wait_for_post "/jobs/customer-sync" '"mapping": ?"picklist"' 60 >/dev/null || failures=$((failures + 1))
+check POST "/jobs/customer-sync" 200 "$old_csv"
 
 if ((failures > 0)); then
   dump_logs
@@ -226,6 +256,7 @@ if [[ "$keep_running" == true ]]; then
   echo "Mule and the stub are running. Try:"
   echo "  curl $base_url/accounts/001xx0000001"
   echo "  curl -X POST '$stub_url/admin/flags/salesforce-loyalty-tier?enabled=true'"
+  echo "  curl -X POST $base_url/jobs/customer-sync"
   echo "Ctrl-C to stop."
   wait "$mule_pid"
 fi

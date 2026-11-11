@@ -21,8 +21,7 @@ variables:
 default:
   image: eclipse-temurin:17-jdk
   cache:
-    key: maven-$CI_COMMIT_REF_SLUG
-    fallback_keys: [maven-$CI_DEFAULT_BRANCH]
+    key: maven
     paths: [.m2/]
   before_script:
     - mkdir -p "$HOME/.m2"
@@ -49,8 +48,7 @@ examples:
   stage: examples
   needs: []
   cache:
-    - key: maven-$CI_COMMIT_REF_SLUG
-      fallback_keys: [maven-$CI_DEFAULT_BRANCH]
+    - key: maven
       paths: [.m2/]
     - key: mule-ce-4.9.0
       paths: [.cache/]
